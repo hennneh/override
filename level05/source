@@ -1,0 +1,18 @@
+int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  int result; // eax
+  char v4[100]; // [esp+28h] [ebp-70h] BYREF
+  unsigned int i; // [esp+8Ch] [ebp-Ch]
+
+  i = 0;
+  fgets(v4, 100, stdin);
+  for ( i = 0; i < strlen(v4); ++i )
+  {
+    if ( v4[i] > 64 && v4[i] <= 90 )
+      v4[i] ^= 0x20u;
+  }
+  printf(v4);
+  exit(0);
+  _libc_csu_init();
+  return result;
+}
