@@ -1,3 +1,24 @@
+int clear_stdin()
+{
+  int result; // eax
+
+  do
+    result = getchar();
+  while ( (_BYTE)result != 10 && (_BYTE)result != 0xFF );
+  return result;
+}
+
+int get_unum()
+{
+  int v1[3]; // [esp+1Ch] [ebp-Ch] BYREF
+
+  v1[0] = 0;
+  fflush(stdout);
+  __isoc99_scanf(&unk_8048AD0, v1);
+  clear_stdin();
+  return v1[0];
+}
+
 int __cdecl read_number(int a1)
 {
   int unum; // [esp+1Ch] [ebp-Ch]
