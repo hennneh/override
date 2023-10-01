@@ -1,0 +1,54 @@
+Upon login we're greeted by:
+
+```shell
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
+Partial RELRO   No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/users/level00/level00
+```
+
+There is a SUID binary owned by `level01`, which prompts the user for a password:
+
+```shell
+level00@OverRide:~$ ./level00
+*********************************** 
+*            -Level00 -           *
+***********************************
+Password:
+```
+
+As we do not know the password, let's take a close look at the decompiled code from **ghidra**:
+
+```C
+bool main(void)
+{
+    int32_t var_20h;
+    int32_t aiStack_14 [3];
+    int32_t var_8h;
+    
+    puts("***********************************");
+    puts("* \t     -Level00 -\t\t  *");
+    puts("***********************************");
+    printf("Password:");
+    __isoc99_scanf(data.08048636, aiStack_14);
+    if (aiStack_14[0] != 0x149c) {
+        puts("\nInvalid Password!");
+    } else {
+        puts("\nAuthenticated!");
+        system("/bin/sh");
+    }
+    return aiStack_14[0] != 0x149c;
+}
+```
+
+Here we can see that the input is being compared against `0x149c` which is `5276` in decimal. With this we can proceed to the next level.
+
+```shell
+level00@OverRide:~$ ./level00
+*********************************** 
+*            -Level00 -           *
+***********************************
+Password:5276
+
+Authenticated!
+$ cat /home/users/level01/.pass
+uSq2ehEGT6c9S24zbshexZQBXUGrncxn5sD5QfGL
+```

